@@ -193,6 +193,7 @@
       <button class="abtn" id="btnUndo">Undo</button>
       <button class="abtn" id="btnRedo">Redo</button>
       <button class="abtn" id="btnReset">Reset</button>
+      <button class="abtn" id="btnRefresh">&#8635; Refresh flow</button>
       <button class="abtn" id="btnCsv">&#8681; CSV</button>
       <button class="abtn" id="btnPng">&#8681; PNG</button>
       <button class="abtn" id="btnPdf">&#8681; PDF Report</button>
@@ -221,6 +222,22 @@
         <thead><tr><th>Object</th><th>Cd</th><th>Cl</th><th>Re range</th><th>Notes</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </div>
+  <div class="lpanel" id="lp_instructions">
+    <div class="lhead">Instructions <span class="chev">&#9656;</span></div>
+    <div class="lbody">
+      <div class="coach">
+        <div class="tip"><b>Test object</b> — Choose <em>Sphere</em> for a bluff-body baseline, or switch to <em>STL</em> and drag-and-drop any binary or ASCII STL file. The mesh is cross-sectioned and rasterised into the solver automatically.</div>
+        <div class="tip"><b>Conditions</b> — Use the sliders or type directly into the number boxes. <em>Air speed</em> (1–515 m/s), <em>Object size</em> (20–600 mm), and <em>Angle of attack</em> (−90° to +90°) all update the flow field in real time.</div>
+        <div class="tip"><b>Overlays</b> — Toggle <em>Streamlines</em>, <em>Pressure</em>, <em>Forces</em>, <em>Boundary layer</em>, <em>Labels</em>, and <em>Grid</em> using the buttons above the tunnel view. Streamlines are colour-coded by local flow speed (blue = slow, red = fast).</div>
+        <div class="tip"><b>Graphs</b> — Switch between <em>Cp</em> (pressure coefficient around the surface), <em>Forces</em> (drag, lift, dynamic pressure), <em>Profile</em> (silhouette preview), and <em>Polar</em> (Cl vs Cd sweep, STL only).</div>
+        <div class="tip"><b>Refresh flow</b> — Resets the fluid solver to a clean freestream without changing your settings or unloading your STL. Useful if the wake looks odd after a large parameter change.</div>
+        <div class="tip"><b>Undo / Redo</b> — Steps back or forward through your speed, size, AoA, and object changes. Up to 30 steps of history.</div>
+        <div class="tip"><b>Units</b> — Toggle between SI (m/s, N, Pa) and Imperial (mph, lbf, psi) at any time; all readouts and exports update immediately.</div>
+        <div class="tip"><b>Exports</b> — <em>PNG</em> saves the current tunnel view; <em>CSV</em> exports a full 1–515 m/s sweep of coefficients and forces; <em>PDF Report</em> bundles the stats and all four graphs into a printable A4 document.</div>
+        <div class="tip"><b>Keyboard shortcuts</b> — <kbd>Space</kbd> pause/play &nbsp;·&nbsp; <kbd>R</kbd> reset &nbsp;·&nbsp; <kbd>1</kbd>–<kbd>4</kbd> switch graph tabs &nbsp;·&nbsp; <kbd>Ctrl/⌘ Z</kbd> undo &nbsp;·&nbsp; <kbd>Ctrl/⌘ Shift Z</kbd> redo &nbsp;·&nbsp; Right-click tunnel or graph for a context menu.</div>
+      </div>
     </div>
   </div>
 </div>
@@ -780,6 +797,7 @@ document.getElementById('btnUndo').addEventListener('click',()=>{ if(!undoStack.
 document.getElementById('btnRedo').addEventListener('click',()=>{ if(!redoStack.length)return; undoStack.push({speed:state.speed,size:state.size,aoa:state.aoa,obj:state.obj}); applySnapshot(redoStack.pop()); });
 document.getElementById('btnReset').addEventListener('click',doReset);
 function doReset(){ pushUndo(); state.speed=60; state.size=75; state.aoa=0; state.obj='sphere'; state.paused=false; btnPause.textContent='Pause'; btnPause.classList.remove('act'); syncControls(); }
+document.getElementById('btnRefresh').addEventListener('click',()=>{ lbInit(); lbBuildMask(); LB.geomKey=''; });
 
 document.getElementById('btnCsv').addEventListener('click',exportCSV);
 function exportCSV(){
