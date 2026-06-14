@@ -194,6 +194,7 @@
       <button class="abtn" id="btnRedo">Redo</button>
       <button class="abtn" id="btnReset">Reset</button>
       <button class="abtn" id="btnRefresh">&#8635; Refresh flow</button>
+      <button class="abtn act" id="btnStall">Stall warning: On</button>
       <button class="abtn" id="btnCsv">&#8681; CSV</button>
       <button class="abtn" id="btnPng">&#8681; PNG</button>
       <button class="abtn" id="btnPdf">&#8681; PDF Report</button>
@@ -268,7 +269,7 @@ const C_MPH=2.236936, C_LBF=0.2248089, C_PSI=0.000145038, C_IN=0.03937008;
 /* ============================ State ============================ */
 const state={
   speed:60, size:75, aoa:0, obj:'sphere', modelName:'sphere',
-  paused:false, zoomIdx:0, gtab:'cp', units:'SI',
+  paused:false, zoomIdx:0, gtab:'cp', units:'SI', stallWarnings:true,
   overlays:{streamlines:true,pressure:false,forces:true,boundary:false,labels:false,grid:false}
 };
 const ZOOMS=[1,1.4,2,3];
@@ -636,7 +637,7 @@ function updateReadouts(){
   set('b_fd',fd.toFixed(fdec)); set('b_fl',fl.toFixed(fdec)); set('b_ld',phys.LD.toFixed(2));
   set('m_v',v.toFixed(1)); set('m_re',fmtRe(phys.Re)); set('m_cd',phys.Cd.toFixed(3)); set('m_cl',phys.Cl.toFixed(3));
   set('m_fd',fd.toFixed(fdec)); set('m_fl',fl.toFixed(fdec)); set('m_q',q.toFixed(qdec)); set('m_ld',phys.LD.toFixed(2));
-  document.getElementById('stall').classList.toggle('show', state.obj==='stl' && phys.stall);
+  document.getElementById('stall').classList.toggle('show', state.stallWarnings && state.obj==='stl' && phys.stall);
   renderEquations(); renderCoach();
 }
 function applyUnitLabels(){
@@ -799,6 +800,8 @@ document.getElementById('btnRedo').addEventListener('click',()=>{ if(!redoStack.
 document.getElementById('btnReset').addEventListener('click',doReset);
 function doReset(){ pushUndo(); state.speed=60; state.size=75; state.aoa=0; state.obj='sphere'; state.paused=false; btnPause.textContent='Pause'; btnPause.classList.remove('act'); syncControls(); }
 document.getElementById('btnRefresh').addEventListener('click',()=>{ lbInit(); lbBuildMask(); LB.geomKey=''; });
+const btnStall=document.getElementById('btnStall');
+btnStall.addEventListener('click',()=>{ state.stallWarnings=!state.stallWarnings; btnStall.textContent='Stall warning: '+(state.stallWarnings?'On':'Off'); btnStall.classList.toggle('act',state.stallWarnings); });
 
 document.getElementById('btnCsv').addEventListener('click',exportCSV);
 function exportCSV(){
