@@ -123,6 +123,7 @@
       </div>
       <div class="legend"><span>Fast</span><div class="lgrad"></div><span>Slow</span></div>
       <div class="stall" id="stall">STALL &mdash; flow separated</div>
+      <div class="stall" id="stallSpeedWarn" style="top:40px">BELOW STALL SPEED &mdash; Vs = &mdash;</div>
     </div>
   </div>
 
@@ -223,6 +224,40 @@
         <thead><tr><th>Object</th><th>Cd</th><th>Cl</th><th>Re range</th><th>Notes</th></tr></thead>
         <tbody></tbody>
       </table>
+    </div>
+  </div>
+  <div class="lpanel" id="lp_stallcalc">
+    <div class="lhead">Stall speed calculator <span class="chev">&#9656;</span></div>
+    <div class="lbody">
+      <div class="slider-row">
+        <label style="margin-bottom:4px">Preset</label>
+        <select id="stallPreset" style="width:100%">
+          <option value="concorde">Concorde (MTOW)</option>
+          <option value="light">Light aircraft &mdash; Cessna 172</option>
+          <option value="sphere">Sphere (N/A)</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div id="stallInputs">
+        <div class="slider-row">
+          <label>Weight W <span class="numwrap"><input type="number" id="stall_W" class="numin" style="width:90px" min="1" step="any"> N</span></label>
+        </div>
+        <div class="slider-row">
+          <label>Air density &#961; <span class="numwrap"><input type="number" id="stall_rho" class="numin" style="width:90px" min="0.001" step="0.001"> kg/m&sup3;</span></label>
+        </div>
+        <div class="slider-row">
+          <label>Wing area S <span class="numwrap"><input type="number" id="stall_S" class="numin" style="width:90px" min="0.001" step="any"> m&sup2;</span></label>
+        </div>
+        <div class="slider-row">
+          <label>C<sub>L,max</sub> <span class="numwrap"><input type="number" id="stall_CLmax" class="numin" style="width:90px" min="0.01" step="0.01"></span></label>
+        </div>
+      </div>
+      <div class="eqrow" id="eq_vs" style="margin:8px 0;overflow-x:auto"></div>
+      <div style="background:var(--hud);border:1px solid var(--hud-border);border-radius:6px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+        <div style="font-size:11px;color:var(--label)">Stall speed V<sub>s</sub></div>
+        <div><span style="font-size:22px;font-weight:600;color:#fff" id="vsDisplay">&mdash;</span><span style="font-size:11px;color:var(--label);margin-left:4px">m/s</span></div>
+      </div>
+      <button class="abtn act" id="btnStallSpeedWarn" style="width:100%">Speed warning: On</button>
     </div>
   </div>
   <div class="lpanel" id="lp_instructions">
@@ -638,6 +673,10 @@ function updateReadouts(){
   set('m_v',v.toFixed(1)); set('m_re',fmtRe(phys.Re)); set('m_cd',phys.Cd.toFixed(3)); set('m_cl',phys.Cl.toFixed(3));
   set('m_fd',fd.toFixed(fdec)); set('m_fl',fl.toFixed(fdec)); set('m_q',q.toFixed(qdec)); set('m_ld',phys.LD.toFixed(2));
   document.getElementById('stall').classList.toggle('show', state.stallWarnings && state.obj==='stl' && phys.stall);
+  const belowStall=stallSpeedWarnActive && state.stallWarnings && isFinite(stallVs) && phys.V<stallVs;
+  const sw=document.getElementById('stallSpeedWarn');
+  sw.classList.toggle('show',belowStall);
+  if(belowStall) sw.textContent='BELOW STALL SPEED — Vs = '+stallVs.toFixed(1)+' m/s';
   renderEquations(); renderCoach();
 }
 function applyUnitLabels(){
@@ -897,6 +936,55 @@ const CMP=[
 function buildCmp(){ const tb=document.querySelector('#cmpTable tbody');
   tb.innerHTML=CMP.map(r=>`<tr data-obj="${r[0]}"><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td></tr>`).join(''); highlightCmp(); }
 function highlightCmp(){ document.querySelectorAll('#cmpTable tbody tr').forEach(tr=>tr.classList.toggle('cur',tr.dataset.obj===state.obj)); }
+
+/* ============================ Stall speed calculator ============================ */
+const STALL_PRESETS={
+  concorde:{W:1841337, rho:1.225, S:358.25, CLmax:1.35},
+  light:   {W:10898,   rho:1.225, S:16.16,  CLmax:1.4},
+  sphere:  {W:null,    rho:1.225, S:null,    CLmax:null},
+  custom:  {W:5000,    rho:1.225, S:20,      CLmax:1.2}
+};
+let stallVs=NaN, stallSpeedWarnActive=true;
+
+function computeVs(W,rho,S,CLmax){
+  if(!W||!S||!CLmax||rho<=0||S<=0||CLmax<=0) return NaN;
+  return Math.sqrt(2*W/(rho*S*CLmax));
+}
+function syncStallPreset(preset){
+  const p=STALL_PRESETS[preset], isSphere=preset==='sphere';
+  document.getElementById('stall_W').value=p.W||''; document.getElementById('stall_W').disabled=isSphere;
+  document.getElementById('stall_rho').value=p.rho;
+  document.getElementById('stall_S').value=p.S||''; document.getElementById('stall_S').disabled=isSphere;
+  document.getElementById('stall_CLmax').value=p.CLmax||''; document.getElementById('stall_CLmax').disabled=isSphere;
+  refreshVs();
+}
+function refreshVs(){
+  const W=parseFloat(document.getElementById('stall_W').value),
+        rho=parseFloat(document.getElementById('stall_rho').value),
+        S=parseFloat(document.getElementById('stall_S').value),
+        CLmax=parseFloat(document.getElementById('stall_CLmax').value);
+  const vs=computeVs(W,rho,S,CLmax);
+  stallVs=vs;
+  document.getElementById('vsDisplay').textContent=isFinite(vs)?vs.toFixed(1):'N/A';
+  if(typeof katex!=='undefined'&&document.getElementById('eq_vs')){
+    const Wv=isFinite(W)?W.toExponential(3):'W',rv=isFinite(rho)?rho.toFixed(3):'\\rho',
+          Sv=isFinite(S)?S.toFixed(2):'S',cv=isFinite(CLmax)?CLmax.toFixed(2):'C_{L,max}',
+          vsv=isFinite(vs)?vs.toFixed(1)+'\\,\\text{m/s}':'\\text{N/A}';
+    try{ katex.render(`V_s=\\sqrt{\\dfrac{2W}{\\rho S C_{L,max}}}=\\sqrt{\\dfrac{2\\times${Wv}}{${rv}\\times${Sv}\\times${cv}}}=${vsv}`,
+      document.getElementById('eq_vs'),{throwOnError:false,displayMode:false}); }catch(e){}
+  }
+}
+document.getElementById('stallPreset').addEventListener('change',e=>syncStallPreset(e.target.value));
+['stall_W','stall_rho','stall_S','stall_CLmax'].forEach(id=>{
+  document.getElementById(id).addEventListener('input',()=>{ document.getElementById('stallPreset').value='custom'; refreshVs(); });
+});
+const btnStallSpeedWarn=document.getElementById('btnStallSpeedWarn');
+btnStallSpeedWarn.addEventListener('click',()=>{
+  stallSpeedWarnActive=!stallSpeedWarnActive;
+  btnStallSpeedWarn.textContent='Speed warning: '+(stallSpeedWarnActive?'On':'Off');
+  btnStallSpeedWarn.classList.toggle('act',stallSpeedWarnActive);
+});
+syncStallPreset('concorde');
 
 /* ============================ Init ============================ */
 buildCmp(); resize(); syncControls(); frame();
