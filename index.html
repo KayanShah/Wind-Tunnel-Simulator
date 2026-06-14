@@ -123,7 +123,7 @@
       </div>
       <div class="legend"><span>Fast</span><div class="lgrad"></div><span>Slow</span></div>
       <div class="stall" id="stall">STALL &mdash; flow separated</div>
-      <div class="stall" id="stallSpeedWarn" style="top:40px">BELOW STALL SPEED &mdash; Vs = &mdash;</div>
+      <!-- <div class="stall" id="stallSpeedWarn" style="top:40px">BELOW STALL SPEED &mdash; Vs = &mdash;</div> -->
     </div>
   </div>
 
@@ -226,6 +226,7 @@
       </table>
     </div>
   </div>
+  <!-- STALL SPEED CALCULATOR (commented out, restore when needed)
   <div class="lpanel" id="lp_stallcalc">
     <div class="lhead">Stall speed calculator <span class="chev">&#9656;</span></div>
     <div class="lbody">
@@ -260,6 +261,7 @@
       <button class="abtn act" id="btnStallSpeedWarn" style="width:100%">Speed warning: On</button>
     </div>
   </div>
+  -->
   <div class="lpanel" id="lp_instructions">
     <div class="lhead">Instructions <span class="chev">&#9656;</span></div>
     <div class="lbody">
@@ -673,10 +675,12 @@ function updateReadouts(){
   set('m_v',v.toFixed(1)); set('m_re',fmtRe(phys.Re)); set('m_cd',phys.Cd.toFixed(3)); set('m_cl',phys.Cl.toFixed(3));
   set('m_fd',fd.toFixed(fdec)); set('m_fl',fl.toFixed(fdec)); set('m_q',q.toFixed(qdec)); set('m_ld',phys.LD.toFixed(2));
   document.getElementById('stall').classList.toggle('show', state.stallWarnings && state.obj==='stl' && phys.stall);
+  /* STALL SPEED WARNING (restore with calculator panel)
   const belowStall=stallSpeedWarnActive && state.stallWarnings && isFinite(stallVs) && phys.V<stallVs;
   const sw=document.getElementById('stallSpeedWarn');
   sw.classList.toggle('show',belowStall);
-  if(belowStall) sw.textContent='BELOW STALL SPEED — Vs = '+stallVs.toFixed(1)+' m/s';
+  if(belowStall) sw.textContent='BELOW STALL SPEED — Vs = '+stallVs.toFixed(1)+' m/s';
+  */
   renderEquations(); renderCoach();
 }
 function applyUnitLabels(){
@@ -937,7 +941,7 @@ function buildCmp(){ const tb=document.querySelector('#cmpTable tbody');
   tb.innerHTML=CMP.map(r=>`<tr data-obj="${r[0]}"><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td><td>${r[5]}</td></tr>`).join(''); highlightCmp(); }
 function highlightCmp(){ document.querySelectorAll('#cmpTable tbody tr').forEach(tr=>tr.classList.toggle('cur',tr.dataset.obj===state.obj)); }
 
-/* ============================ Stall speed calculator ============================ */
+/* ============================ Stall speed calculator (commented out, restore with HTML panel above) ============================
 const STALL_PRESETS={
   concorde:{W:1841337, rho:1.225, S:358.25, CLmax:1.35},
   light:   {W:10898,   rho:1.225, S:16.16,  CLmax:1.4},
@@ -985,6 +989,7 @@ btnStallSpeedWarn.addEventListener('click',()=>{
   btnStallSpeedWarn.classList.toggle('act',stallSpeedWarnActive);
 });
 syncStallPreset('concorde');
+*/
 
 /* ============================ Init ============================ */
 buildCmp(); resize(); syncControls(); frame();
