@@ -530,7 +530,7 @@ function arrow(x0,y0,x1,y1,col,label){
   tctx.restore();
 }
 function drawCredit(){ tctx.save(); tctx.font='11px system-ui'; tctx.fillStyle='rgba(148,163,184,0.65)';
-  tctx.fillText('Built by Kayan Shah · kayanshah.com', 10, TH-8); tctx.restore(); }
+  tctx.fillText('Built by Kayan Shah · wind-tunnel.kayanshah.com', 10, TH-8); tctx.restore(); }
 function drawLabels(){ tctx.save(); tctx.font='12px system-ui'; tctx.fillStyle='rgba(203,213,225,0.85)';
   tctx.fillText('Freestream',12,18); tctx.fillText('Stagnation',cx-Rpx-78,cy+4); tctx.fillText('Wake',cx+Rpx+10,cy+4); tctx.restore(); }
 
@@ -802,7 +802,7 @@ document.getElementById('btnRefresh').addEventListener('click',()=>{ lbInit(); l
 document.getElementById('btnCsv').addEventListener('click',exportCSV);
 function exportCSV(){
   const us=lblSpeed(), uf=lblForce(), up=lblPress();
-  const rows=['# Built by Kayan Shah | hi@kayanshah.com | github.com/KayanShah | kayanshah.com',
+  const rows=['# Built by Kayan Shah | hi@kayanshah.com | github.com/KayanShah | wind-tunnel.kayanshah.com',
     `V (${us}),Re,Mach,Cd,Cl,Fd (${uf}),Fl (${uf}),q (${up}),L/D`];
   const D=state.size/1000, A=Math.PI*Math.pow(D/2,2);
   for(let V=1;V<=515;V+=2){ const Re=RHO*V*D/MU, Mach=V/ASOUND; const {Cd,Cl}=getCoeffs(state.obj,state.aoa,Re,Mach);
@@ -855,7 +855,7 @@ function generatePDF(){
   doc.text('Built by Kayan Shah', M, 822);
   doc.textWithLink('hi@kayanshah.com', M+92, 822, {url:'mailto:hi@kayanshah.com'});
   doc.textWithLink('github.com/KayanShah', M+190, 822, {url:'https://github.com/KayanShah'});
-  doc.textWithLink('kayanshah.com', M+308, 822, {url:'https://kayanshah.com'});
+  doc.textWithLink('wind-tunnel.kayanshah.com', M+308, 822, {url:'https://wind-tunnel.kayanshah.com'});
   doc.save(fname('pdf'));
 }
 function download(name,type,data){ const blob=new Blob([data],{type}), url=URL.createObjectURL(blob);
