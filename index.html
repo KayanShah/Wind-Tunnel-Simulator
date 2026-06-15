@@ -212,7 +212,18 @@
 
 <div id="view3d" style="display:none">
   <div class="view3d-bar">
-    <span id="view3d-title">3D Surface Pressure (Cp) &mdash; drag to orbit &nbsp;&middot;&nbsp; scroll to zoom</span>
+    <span>3D Surface Pressure (Cp) &mdash; drag to orbit &middot; scroll to zoom</span>
+    <span class="view3d-ctrl">
+      Wind from&nbsp;
+      <select id="flow3d-dir" title="Freestream direction — auto-detected, change if colours look inverted">
+        <option value="1,0,0">+X</option>
+        <option value="-1,0,0">&minus;X</option>
+        <option value="0,1,0">+Y</option>
+        <option value="0,-1,0">&minus;Y</option>
+        <option value="0,0,1">+Z</option>
+        <option value="0,0,-1">&minus;Z</option>
+      </select>
+    </span>
     <button id="close3d" title="Close (Esc)">&times;</button>
   </div>
   <canvas id="canvas3d"></canvas>

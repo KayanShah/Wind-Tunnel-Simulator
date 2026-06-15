@@ -20,6 +20,7 @@ let stlHalfW=1, stlHalfH=1;
 
 /* 3D pressure view */
 let three3d_scene=null,three3d_cam=null,three3d_ren=null,three3d_mesh=null,raf3d=0;
+let freestreamBase3d=[1,0,0];
 const orb={theta:0.6,phi:1.1,r:3.5,down:false,ox:0,oy:0,ot:0,op:0};
 
 /* ============================ Canvas setup ============================ */
@@ -730,7 +731,40 @@ function build3DMesh(){
   const mat=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide});
   three3d_mesh=new THREE.Mesh(geom,mat);
   three3d_scene.add(three3d_mesh);
+  autoDetectFreestream();
   color3DMesh();
+}
+function autoDetectFreestream(){
+  // Try each of 6 axis directions. The nose/leading edge is a pointed region
+  // where few faces are highly aligned with any one direction. The direction
+  // where the FEWEST faces score cosT > 0.85 = pointed end = correct freestream.
+  if(!three3d_mesh||!stlTris) return;
+  const pos=three3d_mesh.geometry.attributes.position.array;
+  const n=stlTris.length;
+  const step=Math.max(1,Math.floor(n/1000));
+  const dirs=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+  const nx_s=[],ny_s=[],nz_s=[];
+  for(let i=0;i<n;i+=step){
+    const p0x=pos[i*9],p0y=pos[i*9+1],p0z=pos[i*9+2];
+    const p1x=pos[i*9+3],p1y=pos[i*9+4],p1z=pos[i*9+5];
+    const p2x=pos[i*9+6],p2y=pos[i*9+7],p2z=pos[i*9+8];
+    const e0x=p1x-p0x,e0y=p1y-p0y,e0z=p1z-p0z;
+    const e1x=p2x-p0x,e1y=p2y-p0y,e1z=p2z-p0z;
+    let nx=e0y*e1z-e0z*e1y,ny=e0z*e1x-e0x*e1z,nz=e0x*e1y-e0y*e1x;
+    const nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;
+    const gcx=(p0x+p1x+p2x)/3,gcy=(p0y+p1y+p2y)/3,gcz=(p0z+p1z+p2z)/3;
+    if(nx*gcx+ny*gcy+nz*gcz<0){nx=-nx;ny=-ny;nz=-nz;}
+    nx_s.push(nx);ny_s.push(ny);nz_s.push(nz);
+  }
+  let bestDir=[1,0,0],bestCount=Infinity;
+  for(const [dx,dy,dz] of dirs){
+    let count=0;
+    for(let i=0;i<nx_s.length;i++) if(nx_s[i]*dx+ny_s[i]*dy+nz_s[i]*dz>0.85) count++;
+    if(count<bestCount){bestCount=count;bestDir=[dx,dy,dz];}
+  }
+  freestreamBase3d=bestDir;
+  const sel=document.getElementById('flow3d-dir');
+  if(sel) sel.value=bestDir.join(',');
 }
 function color3DMesh(){
   if(!three3d_mesh||!stlTris) return;
@@ -738,34 +772,36 @@ function color3DMesh(){
   const col=three3d_mesh.geometry.attributes.color.array;
   const n=stlTris.length;
   const aoaRad=state.aoa*DEG;
-  // Freestream direction (where wind comes FROM) in XZ plane
-  const fx=Math.cos(aoaRad), fz=-Math.sin(aoaRad);
+  // Rotate freestream base around Y axis by AoA
+  const [bx,by,bz]=freestreamBase3d;
+  const fx=bx*Math.cos(aoaRad)-bz*Math.sin(aoaRad);
+  const fy=by;
+  const fz=bx*Math.sin(aoaRad)+bz*Math.cos(aoaRad);
   // Pass 1: compute Cp per face, track range
   const cpArr=new Float32Array(n);
-  let cpMin=Infinity, cpMax=-Infinity;
+  let cpMin=Infinity,cpMax=-Infinity;
   for(let i=0;i<n;i++){
     const p0x=pos[i*9],p0y=pos[i*9+1],p0z=pos[i*9+2];
     const p1x=pos[i*9+3],p1y=pos[i*9+4],p1z=pos[i*9+5];
     const p2x=pos[i*9+6],p2y=pos[i*9+7],p2z=pos[i*9+8];
     const e0x=p1x-p0x,e0y=p1y-p0y,e0z=p1z-p0z;
     const e1x=p2x-p0x,e1y=p2y-p0y,e1z=p2z-p0z;
-    let nx=e0y*e1z-e0z*e1y, ny=e0z*e1x-e0x*e1z, nz=e0x*e1y-e0y*e1x;
-    const nl=Math.hypot(nx,ny,nz)||1; nx/=nl; ny/=nl; nz/=nl;
-    // Force outward-pointing normal using face centroid dot with centroid
-    const gcx=(p0x+p1x+p2x)/3, gcy=(p0y+p1y+p2y)/3, gcz=(p0z+p1z+p2z)/3;
-    if(nx*gcx+ny*gcy+nz*gcz<0){ nx=-nx; ny=-ny; nz=-nz; }
-    // Modified Newtonian Cp: windward = cos²θ, leeward = base suction
-    const cosT=nx*fx+ny*0+nz*fz;
-    const Cp=cosT>0 ? cosT*cosT : -0.4*Math.abs(cosT);
+    let nx=e0y*e1z-e0z*e1y,ny=e0z*e1x-e0x*e1z,nz=e0x*e1y-e0y*e1x;
+    const nl=Math.hypot(nx,ny,nz)||1;nx/=nl;ny/=nl;nz/=nl;
+    const gcx=(p0x+p1x+p2x)/3,gcy=(p0y+p1y+p2y)/3,gcz=(p0z+p1z+p2z)/3;
+    if(nx*gcx+ny*gcy+nz*gcz<0){nx=-nx;ny=-ny;nz=-nz;}
+    // Full 3D dot product — includes all three normal components
+    const cosT=nx*fx+ny*fy+nz*fz;
+    const Cp=cosT>0?cosT*cosT:-0.4*Math.abs(cosT);
     cpArr[i]=Cp;
-    if(Cp<cpMin) cpMin=Cp;
-    if(Cp>cpMax) cpMax=Cp;
+    if(Cp<cpMin)cpMin=Cp;
+    if(Cp>cpMax)cpMax=Cp;
   }
-  // Pass 2: normalize to actual range so the full colormap is always visible
-  const range=Math.max(cpMax-cpMin, 0.01);
+  // Pass 2: normalize to actual range so full colormap is always visible
+  const range=Math.max(cpMax-cpMin,0.01);
   for(let i=0;i<n;i++){
     const [r2,g2,b2]=jet((cpArr[i]-cpMin)/range);
-    for(let v=0;v<3;v++){ col[i*9+v*3]=r2; col[i*9+v*3+1]=g2; col[i*9+v*3+2]=b2; }
+    for(let v=0;v<3;v++){col[i*9+v*3]=r2;col[i*9+v*3+1]=g2;col[i*9+v*3+2]=b2;}
   }
   three3d_mesh.geometry.attributes.color.needsUpdate=true;
 }
@@ -802,6 +838,10 @@ function close3DView(){
 }
 document.getElementById('btn3d').addEventListener('click',open3DView);
 document.getElementById('close3d').addEventListener('click',close3DView);
+document.getElementById('flow3d-dir').addEventListener('change',e=>{
+  freestreamBase3d=e.target.value.split(',').map(Number);
+  if(three3d_mesh) color3DMesh();
+});
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') close3DView(); });
 (function(){
   const cv3=document.getElementById('canvas3d');
