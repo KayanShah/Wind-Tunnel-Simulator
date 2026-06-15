@@ -737,22 +737,34 @@ function color3DMesh(){
   const pos=three3d_mesh.geometry.attributes.position.array;
   const col=three3d_mesh.geometry.attributes.color.array;
   const n=stlTris.length;
-  // Freestream direction (where wind comes FROM): +X at AoA=0, tilts in XZ plane with AoA
   const aoaRad=state.aoa*DEG;
+  // Freestream direction (where wind comes FROM) in XZ plane
   const fx=Math.cos(aoaRad), fz=-Math.sin(aoaRad);
+  // Pass 1: compute Cp per face, track range
+  const cpArr=new Float32Array(n);
+  let cpMin=Infinity, cpMax=-Infinity;
   for(let i=0;i<n;i++){
     const p0x=pos[i*9],p0y=pos[i*9+1],p0z=pos[i*9+2];
-    const e0x=pos[i*9+3]-p0x,e0y=pos[i*9+4]-p0y,e0z=pos[i*9+5]-p0z;
-    const e1x=pos[i*9+6]-p0x,e1y=pos[i*9+7]-p0y,e1z=pos[i*9+8]-p0z;
-    // Face normal via cross product
+    const p1x=pos[i*9+3],p1y=pos[i*9+4],p1z=pos[i*9+5];
+    const p2x=pos[i*9+6],p2y=pos[i*9+7],p2z=pos[i*9+8];
+    const e0x=p1x-p0x,e0y=p1y-p0y,e0z=p1z-p0z;
+    const e1x=p2x-p0x,e1y=p2y-p0y,e1z=p2z-p0z;
     let nx=e0y*e1z-e0z*e1y, ny=e0z*e1x-e0x*e1z, nz=e0x*e1y-e0y*e1x;
     const nl=Math.hypot(nx,ny,nz)||1; nx/=nl; ny/=nl; nz/=nl;
-    // dot(normal, freestream_from): >0 = windward (stagnation), <0 = leeward (suction)
-    const cosT=nx*fx+nz*fz;
-    // Modified Newtonian Theory for Cp
-    const Cp=cosT>0 ? cosT*cosT : -0.3*Math.abs(cosT);
-    // Map Cp [-0.3, 1.0] -> [0, 1] for jet
-    const [r2,g2,b2]=jet((Cp+0.3)/1.3);
+    // Force outward-pointing normal using face centroid dot with centroid
+    const gcx=(p0x+p1x+p2x)/3, gcy=(p0y+p1y+p2y)/3, gcz=(p0z+p1z+p2z)/3;
+    if(nx*gcx+ny*gcy+nz*gcz<0){ nx=-nx; ny=-ny; nz=-nz; }
+    // Modified Newtonian Cp: windward = cos²θ, leeward = base suction
+    const cosT=nx*fx+ny*0+nz*fz;
+    const Cp=cosT>0 ? cosT*cosT : -0.4*Math.abs(cosT);
+    cpArr[i]=Cp;
+    if(Cp<cpMin) cpMin=Cp;
+    if(Cp>cpMax) cpMax=Cp;
+  }
+  // Pass 2: normalize to actual range so the full colormap is always visible
+  const range=Math.max(cpMax-cpMin, 0.01);
+  for(let i=0;i<n;i++){
+    const [r2,g2,b2]=jet((cpArr[i]-cpMin)/range);
     for(let v=0;v<3;v++){ col[i*9+v*3]=r2; col[i*9+v*3+1]=g2; col[i*9+v*3+2]=b2; }
   }
   three3d_mesh.geometry.attributes.color.needsUpdate=true;
