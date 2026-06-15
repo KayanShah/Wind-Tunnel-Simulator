@@ -18,6 +18,10 @@ let undoStack=[], redoStack=[];
 let stlTris=null, stlBounds=null, stlContour=null;
 let stlHalfW=1, stlHalfH=1;
 
+/* 3D pressure view */
+let three3d_scene=null,three3d_cam=null,three3d_ren=null,three3d_mesh=null,raf3d=0;
+const orb={theta:0.6,phi:1.1,r:3.5,down:false,ox:0,oy:0,ot:0,op:0};
+
 /* ============================ Canvas setup ============================ */
 const tunnel=document.getElementById('tunnel');
 const tctx=tunnel.getContext('2d');
@@ -472,7 +476,8 @@ function loadSTL(file){
       if(stlContour){ state.modelName=file.name.replace(/\.stl$/i,'')||'model';
         const dz=document.getElementById('dropzone'); dz.classList.remove('err');
         dz.innerHTML=`Loaded: ${file.name} (${stlTris.length} triangles)<input type="file" id="stlfile" accept=".stl" style="display:none">`;
-        rebindFileInput(); document.getElementById('sliceCtl').classList.add('show'); selectObj('stl'); }
+        rebindFileInput(); document.getElementById('sliceCtl').classList.add('show'); selectObj('stl');
+        if(three3d_ren) build3DMesh(); }
     }catch(err){ stlTris=null; stlContour=null; showStlError(err.message||'parse failed'); selectObj('sphere'); }
   };
   reader.onerror=function(){ showStlError('could not read file'); };
@@ -487,6 +492,7 @@ function syncControls(){
   document.querySelectorAll('.objtab').forEach(b=>b.classList.toggle('on',b.dataset.obj===state.obj));
   document.getElementById('sliceCtl').classList.toggle('show', state.obj==='stl' && !!stlTris);
   if(state.obj!=='stl') state.modelName='sphere';
+  document.getElementById('btn3d').disabled=!(state.obj==='stl'&&!!stlTris);
   highlightCmp();
 }
 function selectObj(obj){ state.obj=obj; syncControls(); }
@@ -501,7 +507,7 @@ function clampVal(v,min,max,def){ v=Math.round(Number(v)); if(!isFinite(v)) retu
 // sliders
 spSpeed.addEventListener('input',()=>{pushUndo();state.speed=+spSpeed.value;numSpeed.value=state.speed;});
 spSize.addEventListener('input',()=>{pushUndo();state.size=+spSize.value;numSize.value=state.size;});
-spAoa.addEventListener('input',()=>{pushUndo();state.aoa=+spAoa.value;numAoa.value=state.aoa;});
+spAoa.addEventListener('input',()=>{pushUndo();state.aoa=+spAoa.value;numAoa.value=state.aoa;if(three3d_mesh)color3DMesh();});
 // number inputs (live update while typing, validate/clamp on commit)
 function wireNum(num,sld,min,max,setter){
   num.addEventListener('input',()=>{ const v=Number(num.value); if(isFinite(v)&&v>=min&&v<=max){ num.classList.remove('bad'); setter(Math.round(v)); sld.value=Math.round(v); } else num.classList.add('bad'); });
@@ -510,6 +516,8 @@ function wireNum(num,sld,min,max,setter){
 wireNum(numSpeed,spSpeed,1,515,v=>{ if(v!==undefined)state.speed=v; return state.speed; });
 wireNum(numSize,spSize,20,600,v=>{ if(v!==undefined)state.size=v; return state.size; });
 wireNum(numAoa,spAoa,-90,90,v=>{ if(v!==undefined)state.aoa=v; return state.aoa; });
+numAoa.addEventListener('input',()=>{ if(three3d_mesh)color3DMesh(); });
+numAoa.addEventListener('change',()=>{ if(three3d_mesh)color3DMesh(); });
 document.querySelectorAll('.objtab').forEach(b=>{ b.addEventListener('click',()=>{ pushUndo();
   if(b.dataset.obj==='stl' && !stlTris) document.getElementById('stlfile').click(); selectObj(b.dataset.obj); }); });
 document.querySelectorAll('.ovbtn[data-ov]').forEach(b=>{ b.addEventListener('click',()=>{ const k=b.dataset.ov; state.overlays[k]=!state.overlays[k]; b.classList.toggle('on',state.overlays[k]); }); });
@@ -692,6 +700,113 @@ btnStallSpeedWarn.addEventListener('click',()=>{
 });
 syncStallPreset('concorde');
 */
+
+/* ============================ 3D Pressure Map ============================ */
+function build3DMesh(){
+  if(!stlTris||typeof THREE==='undefined') return;
+  if(!three3d_scene){
+    three3d_scene=new THREE.Scene();
+    three3d_scene.background=new THREE.Color(0x0d1320);
+    three3d_cam=new THREE.PerspectiveCamera(45,2,0.001,100);
+  }
+  if(three3d_mesh){ three3d_scene.remove(three3d_mesh); three3d_mesh.geometry.dispose(); three3d_mesh=null; }
+  const n=stlTris.length;
+  const pos=new Float32Array(n*9), col=new Float32Array(n*9);
+  const b=stlBounds;
+  const cx_=(b.min.x+b.max.x)/2, cy_=(b.min.y+b.max.y)/2, cz_=(b.min.z+b.max.z)/2;
+  const ext=Math.max(b.max.x-b.min.x,b.max.y-b.min.y,b.max.z-b.min.z)||1;
+  const sc=2/ext;
+  for(let i=0;i<n;i++){
+    const t=stlTris[i];
+    for(let v=0;v<3;v++){
+      pos[i*9+v*3  ]=(t[v].x-cx_)*sc;
+      pos[i*9+v*3+1]=(t[v].y-cy_)*sc;
+      pos[i*9+v*3+2]=(t[v].z-cz_)*sc;
+    }
+  }
+  const geom=new THREE.BufferGeometry();
+  geom.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  geom.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const mat=new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide});
+  three3d_mesh=new THREE.Mesh(geom,mat);
+  three3d_scene.add(three3d_mesh);
+  color3DMesh();
+}
+function color3DMesh(){
+  if(!three3d_mesh||!stlTris) return;
+  const pos=three3d_mesh.geometry.attributes.position.array;
+  const col=three3d_mesh.geometry.attributes.color.array;
+  const n=stlTris.length;
+  // Freestream direction (where wind comes FROM): +X at AoA=0, tilts in XZ plane with AoA
+  const aoaRad=state.aoa*DEG;
+  const fx=Math.cos(aoaRad), fz=-Math.sin(aoaRad);
+  for(let i=0;i<n;i++){
+    const p0x=pos[i*9],p0y=pos[i*9+1],p0z=pos[i*9+2];
+    const e0x=pos[i*9+3]-p0x,e0y=pos[i*9+4]-p0y,e0z=pos[i*9+5]-p0z;
+    const e1x=pos[i*9+6]-p0x,e1y=pos[i*9+7]-p0y,e1z=pos[i*9+8]-p0z;
+    // Face normal via cross product
+    let nx=e0y*e1z-e0z*e1y, ny=e0z*e1x-e0x*e1z, nz=e0x*e1y-e0y*e1x;
+    const nl=Math.hypot(nx,ny,nz)||1; nx/=nl; ny/=nl; nz/=nl;
+    // dot(normal, freestream_from): >0 = windward (stagnation), <0 = leeward (suction)
+    const cosT=nx*fx+nz*fz;
+    // Modified Newtonian Theory for Cp
+    const Cp=cosT>0 ? cosT*cosT : -0.3*Math.abs(cosT);
+    // Map Cp [-0.3, 1.0] -> [0, 1] for jet
+    const [r2,g2,b2]=jet((Cp+0.3)/1.3);
+    for(let v=0;v<3;v++){ col[i*9+v*3]=r2; col[i*9+v*3+1]=g2; col[i*9+v*3+2]=b2; }
+  }
+  three3d_mesh.geometry.attributes.color.needsUpdate=true;
+}
+function updateCam3(){
+  if(!three3d_cam) return;
+  const {theta,phi,r}=orb;
+  three3d_cam.position.set(r*Math.sin(phi)*Math.sin(theta),r*Math.cos(phi),r*Math.sin(phi)*Math.cos(theta));
+  three3d_cam.lookAt(0,0,0);
+}
+function render3d(){
+  const ov=document.getElementById('view3d');
+  if(!ov||ov.style.display==='none'){ raf3d=0; return; }
+  raf3d=requestAnimationFrame(render3d);
+  if(three3d_ren&&three3d_scene&&three3d_cam) three3d_ren.render(three3d_scene,three3d_cam);
+}
+function open3DView(){
+  if(!stlTris||typeof THREE==='undefined') return;
+  const ov=document.getElementById('view3d'); ov.style.display='flex';
+  const W=window.innerWidth, H=window.innerHeight-74;
+  if(!three3d_ren){
+    const cv=document.getElementById('canvas3d');
+    three3d_ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+    three3d_ren.setPixelRatio(window.devicePixelRatio||1);
+    if(!three3d_scene){ build3DMesh(); }
+  }
+  three3d_ren.setSize(W,H);
+  three3d_cam.aspect=W/H; three3d_cam.updateProjectionMatrix();
+  updateCam3();
+  if(!raf3d) render3d();
+}
+function close3DView(){
+  const ov=document.getElementById('view3d'); if(ov) ov.style.display='none';
+  cancelAnimationFrame(raf3d); raf3d=0;
+}
+document.getElementById('btn3d').addEventListener('click',open3DView);
+document.getElementById('close3d').addEventListener('click',close3DView);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') close3DView(); });
+(function(){
+  const cv3=document.getElementById('canvas3d');
+  cv3.addEventListener('mousedown',e=>{ orb.down=true; orb.ox=e.clientX; orb.oy=e.clientY; orb.ot=orb.theta; orb.op=orb.phi; });
+  window.addEventListener('mousemove',e=>{ if(!orb.down) return;
+    orb.theta=orb.ot-(e.clientX-orb.ox)*0.008;
+    orb.phi=Math.max(0.08,Math.min(Math.PI-0.08,orb.op+(e.clientY-orb.oy)*0.008));
+    updateCam3(); });
+  window.addEventListener('mouseup',()=>{ orb.down=false; });
+  cv3.addEventListener('wheel',e=>{ e.preventDefault();
+    orb.r=Math.max(1,Math.min(10,orb.r+e.deltaY*0.005)); updateCam3(); },{passive:false});
+  window.addEventListener('resize',()=>{
+    if(!three3d_ren||document.getElementById('view3d').style.display==='none') return;
+    const W=window.innerWidth,H=window.innerHeight-74;
+    three3d_ren.setSize(W,H); three3d_cam.aspect=W/H; three3d_cam.updateProjectionMatrix();
+  });
+})();
 
 /* ============================ Init ============================ */
 buildCmp(); resize(); syncControls(); frame();

@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 </head>
 <body>
 
@@ -108,6 +109,7 @@
       <button class="abtn" id="btnRedo">Redo</button>
       <button class="abtn" id="btnReset">Reset</button>
       <button class="abtn" id="btnRefresh">&#8635; Refresh flow</button>
+      <button class="abtn" id="btn3d" disabled>&#9699; 3D Pressure</button>
       <button class="abtn act" id="btnStall">Stall warning: On</button>
       <button class="abtn" id="btnCsv">&#8681; CSV</button>
       <button class="abtn" id="btnPng">&#8681; PNG</button>
@@ -206,6 +208,19 @@
   <div data-act="csv">Export CSV</div>
   <div data-act="grid">Toggle Grid</div>
   <div data-act="reset">Reset</div>
+</div>
+
+<div id="view3d" style="display:none">
+  <div class="view3d-bar">
+    <span id="view3d-title">3D Surface Pressure (Cp) &mdash; drag to orbit &nbsp;&middot;&nbsp; scroll to zoom</span>
+    <button id="close3d" title="Close (Esc)">&times;</button>
+  </div>
+  <canvas id="canvas3d"></canvas>
+  <div class="view3d-legend">
+    <span>Suction (&minus;)</span>
+    <div class="view3d-lgrad"></div>
+    <span>Stagnation (+)</span>
+  </div>
 </div>
 
 <script src="main.js"></script>
