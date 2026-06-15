@@ -89,6 +89,9 @@
   .view3d-bar button:hover{color:#fff;}
   .view3d-ctrl{display:flex;align-items:center;font-size:12px;color:#94a3b8;margin-left:auto;margin-right:12px;}
   .view3d-ctrl select{margin-left:4px;padding:2px 4px;font-size:12px;}
+  .wind3d-arrow{font-size:18px;line-height:1;color:#00d4ff;min-width:20px;text-align:center;}
+  .view3d-scl{display:flex;align-items:center;gap:4px;font-size:11px;color:#94a3b8;margin-left:20px;white-space:nowrap;}
+  .view3d-scl input[type=range]{width:80px;accent-color:#3b82f6;}
   #canvas3d{flex:1;display:block;width:100%;cursor:grab;}
   #canvas3d:active{cursor:grabbing;}
   .view3d-legend{display:flex;align-items:center;gap:10px;padding:6px 16px;background:#141c2e;font-size:11px;color:#94a3b8;flex-shrink:0;}

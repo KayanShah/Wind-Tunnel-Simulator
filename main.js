@@ -20,7 +20,7 @@ let stlHalfW=1, stlHalfH=1;
 
 /* 3D pressure view */
 let three3d_scene=null,three3d_cam=null,three3d_ren=null,three3d_mesh=null,raf3d=0;
-let freestreamBase3d=[1,0,0];
+let freestreamBase3d=[1,0,0], cpScaleFactor=1.0, arrow3d=null;
 const orb={theta:0.6,phi:1.1,r:3.5,down:false,ox:0,oy:0,ot:0,op:0};
 
 /* ============================ Canvas setup ============================ */
@@ -614,6 +614,35 @@ function generatePDF(){
   doc.textWithLink('hi@kayanshah.com', M+92, 822, {url:'mailto:hi@kayanshah.com'});
   doc.textWithLink('github.com/KayanShah', M+190, 822, {url:'https://github.com/KayanShah'});
   doc.textWithLink('wind-tunnel.kayanshah.com', M+308, 822, {url:'https://wind-tunnel.kayanshah.com'});
+  // Page 2 — 3D surface pressure map (only when the 3D view has been initialised)
+  if(three3d_ren&&three3d_scene&&three3d_cam&&stlTris){
+    three3d_ren.render(three3d_scene,three3d_cam);
+    const img3d=document.getElementById('canvas3d').toDataURL('image/png');
+    doc.addPage();
+    doc.setFont('helvetica','bold'); doc.setFontSize(16); doc.setTextColor(20);
+    doc.text('3D Surface Pressure Distribution (Cp)',M,48);
+    doc.setFont('helvetica','normal'); doc.setFontSize(9); doc.setTextColor(110);
+    const dir3={'1,0,0':'+X','-1,0,0':'−X','0,1,0':'+Y','0,-1,0':'−Y','0,0,1':'+Z','0,0,-1':'−Z'}[freestreamBase3d.join(',')]||'?';
+    doc.text('Model: '+modelLabel()+'  ·  Wind from: '+dir3+'  ·  AoA: '+state.aoa+'°  ·  Scale: '+cpScaleFactor.toFixed(2)+'×',M,63);
+    const cv3d=document.getElementById('canvas3d');
+    const iw3d=W-2*M;
+    const ih3d=Math.min(iw3d*(cv3d.clientHeight||window.innerHeight-74)/(cv3d.clientWidth||window.innerWidth),660);
+    doc.addImage(img3d,'PNG',M,72,iw3d,ih3d);
+    // Cp gradient legend
+    const ly=72+ih3d+10;
+    doc.setFontSize(8); doc.setTextColor(110);
+    doc.text('Suction (−)',M,ly+8);
+    doc.text('Stagnation (+)',M+iw3d-56,ly+8);
+    const nS=40,lgX=M+60,lgW=iw3d-116;
+    for(let k=0;k<nS;k++){
+      const [cr,cg,cb]=jet(k/(nS-1));
+      doc.setFillColor(Math.round(cr*255),Math.round(cg*255),Math.round(cb*255));
+      doc.rect(lgX+k*lgW/nS,ly,lgW/nS+0.5,6,'F');
+    }
+    doc.setFontSize(8); doc.setTextColor(120);
+    doc.text('Built by Kayan Shah',M,822);
+    doc.textWithLink('wind-tunnel.kayanshah.com',M+308,822,{url:'https://wind-tunnel.kayanshah.com'});
+  }
   doc.save(fname('pdf'));
 }
 function download(name,type,data){ const blob=new Blob([data],{type}), url=URL.createObjectURL(blob);
@@ -765,6 +794,23 @@ function autoDetectFreestream(){
   freestreamBase3d=bestDir;
   const sel=document.getElementById('flow3d-dir');
   if(sel) sel.value=bestDir.join(',');
+  updateWindIndicator();
+  updateArrow3d();
+}
+const WIND_ARROWS={'1,0,0':'→','-1,0,0':'←','0,1,0':'↑','0,-1,0':'↓','0,0,1':'⊙','0,0,-1':'⊗'};
+function updateWindIndicator(){
+  const el=document.getElementById('wind3d-arrow');
+  if(el) el.textContent=WIND_ARROWS[freestreamBase3d.join(',')] || '→';
+}
+function updateArrow3d(){
+  if(!three3d_scene||typeof THREE==='undefined') return;
+  if(arrow3d){ three3d_scene.remove(arrow3d); arrow3d=null; }
+  const [bx,by,bz]=freestreamBase3d;
+  // Arrow shows the flow direction (wind travels from source toward the model)
+  const dir=new THREE.Vector3(-bx,-by,-bz);
+  const origin=new THREE.Vector3(bx*1.85,by*1.85-0.3,bz*1.85);
+  arrow3d=new THREE.ArrowHelper(dir,origin,0.75,0x00d4ff,0.22,0.13);
+  three3d_scene.add(arrow3d);
 }
 function color3DMesh(){
   if(!three3d_mesh||!stlTris) return;
@@ -797,10 +843,12 @@ function color3DMesh(){
     if(Cp<cpMin)cpMin=Cp;
     if(Cp>cpMax)cpMax=Cp;
   }
-  // Pass 2: normalize to actual range so full colormap is always visible
-  const range=Math.max(cpMax-cpMin,0.01);
+  // Pass 2: normalize, then apply cpScaleFactor (<1 = higher contrast, >1 = lower)
+  const autoRange=Math.max(cpMax-cpMin,0.01);
+  const midCp=(cpMin+cpMax)/2, halfR=(autoRange/2)*cpScaleFactor;
+  const effMin=midCp-halfR, effRange=halfR*2;
   for(let i=0;i<n;i++){
-    const [r2,g2,b2]=jet((cpArr[i]-cpMin)/range);
+    const [r2,g2,b2]=jet(Math.max(0,Math.min(1,(cpArr[i]-effMin)/effRange)));
     for(let v=0;v<3;v++){col[i*9+v*3]=r2;col[i*9+v*3+1]=g2;col[i*9+v*3+2]=b2;}
   }
   three3d_mesh.geometry.attributes.color.needsUpdate=true;
@@ -823,7 +871,7 @@ function open3DView(){
   const W=window.innerWidth, H=window.innerHeight-74;
   if(!three3d_ren){
     const cv=document.getElementById('canvas3d');
-    three3d_ren=new THREE.WebGLRenderer({canvas:cv,antialias:true});
+    three3d_ren=new THREE.WebGLRenderer({canvas:cv,antialias:true,preserveDrawingBuffer:true});
     three3d_ren.setPixelRatio(window.devicePixelRatio||1);
     if(!three3d_scene){ build3DMesh(); }
   }
@@ -840,6 +888,12 @@ document.getElementById('btn3d').addEventListener('click',open3DView);
 document.getElementById('close3d').addEventListener('click',close3DView);
 document.getElementById('flow3d-dir').addEventListener('change',e=>{
   freestreamBase3d=e.target.value.split(',').map(Number);
+  updateWindIndicator(); updateArrow3d();
+  if(three3d_mesh) color3DMesh();
+});
+document.getElementById('cp3d-scale').addEventListener('input',e=>{
+  cpScaleFactor=parseFloat(e.target.value);
+  document.getElementById('cp3d-scv').textContent=cpScaleFactor.toFixed(2)+'×';
   if(three3d_mesh) color3DMesh();
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape') close3DView(); });

@@ -215,7 +215,7 @@
     <span>3D Surface Pressure (Cp) &mdash; drag to orbit &middot; scroll to zoom</span>
     <span class="view3d-ctrl">
       Wind from&nbsp;
-      <select id="flow3d-dir" title="Freestream direction — auto-detected, change if colours look inverted">
+      <select id="flow3d-dir" title="Freestream axis — auto-detected on load, override if colours look inverted">
         <option value="1,0,0">+X</option>
         <option value="-1,0,0">&minus;X</option>
         <option value="0,1,0">+Y</option>
@@ -223,6 +223,7 @@
         <option value="0,0,1">+Z</option>
         <option value="0,0,-1">&minus;Z</option>
       </select>
+      &nbsp;<span id="wind3d-arrow" class="wind3d-arrow" title="Wind flow direction">→</span>
     </span>
     <button id="close3d" title="Close (Esc)">&times;</button>
   </div>
@@ -231,6 +232,9 @@
     <span>Suction (&minus;)</span>
     <div class="view3d-lgrad"></div>
     <span>Stagnation (+)</span>
+    <span class="view3d-scl">
+      Contrast&nbsp;<input type="range" id="cp3d-scale" min="0.2" max="3" step="0.1" value="1">&nbsp;<span id="cp3d-scv">1.0&times;</span>
+    </span>
   </div>
 </div>
 
